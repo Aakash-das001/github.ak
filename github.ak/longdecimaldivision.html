@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The ultimate mast division</title>
+</head>
+<style>
+    
+        :root {
+            --cell: 52px;
+            --blue: #3b82f6;
+            --green: #10b981;
+            --red: #ef4444;
+            --line: #334155;
+        }
+
+        body {
+            font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+            background: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+            gap: 30px;
+        }
+
+        .sidebar { width: 260px; display: flex; flex-direction: column; gap: 20px; }
+        
+        .card { 
+            background: white; 
+            padding: 24px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
+            text-align: center;
+        }
+        
+        #result-display { 
+            display: none; 
+            border: 4px solid var(--green); 
+            background: #f0fdf4; 
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .workspace {
+            position: relative;
+            background: white;
+            padding: 60px;
+            border-radius: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            min-width: 700px;
+        }
+
+        .math-grid { display: grid; grid-template-columns: repeat(16, var(--cell)); grid-template-rows: repeat(25, var(--cell)); }
+        .cell { width: var(--cell); height: var(--cell); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; color: #1e293b; z-index: 2; }
+        
+        .math-input { 
+            width: 85%; height: 85%; border: 3px solid var(--blue); text-align: center; 
+            font-size: 28px; font-weight: bold; border-radius: 12px; outline: none; 
+            background: #f8fafc; transition: all 0.2s; 
+        }
+        .math-input:focus { border-color: #2563eb; background: white; transform: scale(1.1); }
+        
+        .bracket-side { grid-column: 3; grid-row: 3; border-left: 6px solid var(--line); border-top: 6px solid var(--line); border-top-left-radius: 18px; margin-left: 30px; }
+        .bracket-top { grid-row: 3; border-top: 6px solid var(--line); }
+        .sub-line { border-bottom: 4px solid var(--line); grid-row: var(--row); grid-column: var(--col-start) / span var(--span); width: 95%; margin: 0 auto; }
+        
+        /* .drop-arrow { stroke: var(--blue); stroke-width: 4; fill: none; marker-end: url(#arrowhead); } */
+
+        .btn-container { display: flex; flex-direction: column; gap: 16px; margin-top: 10px; }
+        
+        button { 
+            padding: 16px; border: none; border-radius: 14px; cursor: pointer; 
+            font-weight: 800; font-size: 18px; color: white; width: 100%; 
+            transition: all 0.2s; 
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        
+        .btn-new { background: var(--blue); }
+        .btn-hint { background: #f59e0b; }
+        
+        .decimal-pt { color: var(--red); font-size: 40px; transform: translateY(-8px); }
+        .minus-sign { color: var(--red); font-size: 36px; font-weight: 900; }
+
+        @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+   
+</style>
+
+<body>
+    
+<div class="sidebar">
+    <div class="card">
+        <h2 style="margin:0 0 10px 0;">Division Master</h2>
+        <div id="guide" style="color: #64748b; margin-bottom: 20px;">Let's divide!</div>
+        <div class="btn-container">
+            <button class="btn-new" onclick="app.generate()">New Problem</button>
+            <button class="btn-hint" onclick="app.giveHint()">Hint</button>
+        </div>
+    </div>
+    <div id="result-display" class="card">
+        <h3 style="color: var(--green); margin: 0;">Excellent!</h3>
+        <p style="margin: 10px 0; color: #475569;">Answer:</p>
+        <div id="final-val" style="font-size: 3.5em; font-weight: bold;"></div>
+    </div>
+</div>
+
+<div class="workspace">
+    <svg style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1;" id="svgLayer">
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="var(--blue)" />
+            </marker>
+        </defs>
+    </svg>
+    <div class="math-grid" id="grid"></div>
+</div>
+<script>
+    
+
+class DivisionApp {
+    constructor() { this.generate(); }
+
+    generate() {
+        document.getElementById('result-display').style.display = 'none';
+        
+        // Randomly generate numbers that result in nice 1-decimal quotients
+        const div = Math.floor(Math.random() * 7) + 3; 
+        const quo = (Math.floor(Math.random() * 80) + 120) / 10; 
+        
+        this.divisor = div;
+        this.dividend = parseFloat((div * quo).toFixed(1));
+        this.dividendStr = this.dividend.toString();
+        if (!this.dividendStr.includes('.')) this.dividendStr += ".0";
+        
+        this.answerValue = quo;
+        document.getElementById('grid').innerHTML = '';
+        document.getElementById('svgLayer').innerHTML = document.getElementById('svgLayer').querySelector('defs').outerHTML;
+        
+        this.idx = 0; 
+        this.steps = [];
+        this.calculateSteps();
+        this.renderStart();
+        this.next();
+    }
+
+    calculateSteps() {
+        let clean = this.dividendStr.replace('.', '');
+        let dotAt = this.dividendStr.indexOf('.');
+        let workingNumStr = '';
+        let rowIdx = 4;
+        let started = false;
+
+        for (let i = 0; i < clean.length; i++) {
+            workingNumStr += clean[i];
+            let currentVal = parseInt(workingNumStr);
+            
+            // Skip leading zeros
+            if (currentVal < this.divisor && !started && i < clean.length - 1) continue; 
+            
+            started = true;
+            let qDigit = Math.floor(currentVal / this.divisor);
+            let product = qDigit * this.divisor;
+            let remainder = currentVal - product;
+            
+            // Current digit grid position (accounting for decimal point shift)
+            let currentDigitCol = 4 + i + (dotAt !== -1 && i >= dotAt ? 1 : 0);
+            
+            // Step: Quotient
+            this.steps.push({ type: 'I', val: qDigit, r: 2, c: currentDigitCol });
+
+            // Step: Product (Aligned to currentDigitCol)
+            let pStr = product.toString();
+            this.steps.push({ type: 'MINUS', r: rowIdx, c: currentDigitCol - pStr.length });
+            for(let j = 0; j < pStr.length; j++) {
+                this.steps.push({ type: 'I', val: pStr[j], r: rowIdx, c: (currentDigitCol - pStr.length + 1) + j });
+            }
+
+            // Step: Subtraction Line (Span the width of the working number)
+            let span = Math.max(workingNumStr.length, pStr.length);
+            this.steps.push({ type: 'LINE', r: rowIdx, c: currentDigitCol, span: span });
+
+            // Step: Remainder
+            let rStr = remainder.toString();
+            for(let k = 0; k < rStr.length; k++) {
+                this.steps.push({ type: 'I', val: rStr[k], r: rowIdx + 1, c: (currentDigitCol - rStr.length + 1) + k });
+            }
+
+            // Step: Drop Arrow and Next Working Num
+            if (i < clean.length - 1) {
+                let nextDigitCol = 4 + (i + 1) + (dotAt !== -1 && (i+1) >= dotAt ? 1 : 0);
+                this.steps.push({ type: 'DROP', fromRow: 3, targetCol: nextDigitCol, toR: rowIdx + 1, toC: nextDigitCol, digit: clean[i+1] });
+                workingNumStr = remainder.toString();
+                rowIdx += 2;
+            } else if (remainder === 0) {
+                this.steps.push({ type: 'FINAL_ZERO', r: rowIdx + 1, c: currentDigitCol });
+            }
+        }
+    }
+
+    renderStart() {
+        this.addCell(3, 2, this.divisor);
+        const grid = document.getElementById('grid');
+        const topSpan = this.dividendStr.length + 1;
+        const topElement = document.createElement('div');
+        topElement.className = 'bracket-top';
+        topElement.style.gridColumn = `4 / span ${topSpan}`;
+        grid.insertAdjacentHTML('beforeend', '<div class="bracket-side"></div>');
+        grid.appendChild(topElement);
+        
+        for(let i=0; i < this.dividendStr.length; i++) {
+            let char = this.dividendStr[i];
+            let cell = this.addCell(3, 4+i, char);
+            if(char === '.') {
+                cell.classList.add('decimal-pt');
+                this.addCell(2, 4+i, '.').classList.add('decimal-pt');
+            }
+        }
+    }
+
+    addCell(r, c, val) {
+        const el = document.createElement('div');
+        el.className = 'cell'; el.style.gridRow = r; el.style.gridColumn = c;
+        el.innerText = val === '.' ? '•' : val;
+        document.getElementById('grid').appendChild(el); return el;
+    }
+
+    next() {
+        if (this.idx >= this.steps.length) {
+            document.getElementById('final-val').innerText = this.answerValue;
+            document.getElementById('result-display').style.display = 'block';
+            return;
+        }
+        
+        const s = this.steps[this.idx];
+        if (s.type === 'MINUS') {
+            this.addCell(s.r, s.c, "−").classList.add('minus-sign');
+            this.idx++; this.next();
+        } else if (s.type === 'I') {
+            const container = this.addCell(s.r, s.c, "");
+            const input = document.createElement('input');
+            input.className = 'math-input'; input.id = "active-step";
+            input.setAttribute('type', 'tel');
+            input.oninput = () => { if (input.value == s.val) { container.innerText = s.val; this.idx++; this.next(); } };
+            container.appendChild(input); input.focus();
+        } else if (s.type === 'LINE') {
+            const l = document.createElement('div');
+            l.className = 'sub-line'; l.style.setProperty('--row', s.r);
+            l.style.setProperty('--col-start', (s.c - s.span + 1));
+            l.style.setProperty('--span', s.span);
+            document.getElementById('grid').appendChild(l); 
+            this.idx++; this.next();
+        } else if (s.type === 'DROP') { this.doArrow(s); }
+        else if (s.type === 'FINAL_ZERO') { this.addCell(s.r, s.c, '0'); this.idx++; this.next(); }
+    }
+
+    doArrow(s) {
+        const x = (s.targetCol - 1) * 52 + 26;
+        const sY = (3) * 52 + 15;
+        const eY = (s.toR - 1) * 52 + 5;
+        const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p.setAttribute("d", `M ${x} ${sY} L ${x} ${eY}`);
+        p.setAttribute("class", "drop-arrow");
+        document.getElementById('svgLayer').appendChild(p);
+        setTimeout(() => { this.addCell(s.toR, s.toC, s.digit); this.idx++; this.next(); }, 500);
+    }
+
+    giveHint() {
+        const input = document.getElementById('active-step');
+        if (input) { input.placeholder = this.steps[this.idx].val; setTimeout(() => { input.placeholder = ""; }, 1000); }
+    }
+}
+const app = new DivisionApp();
+
+</script>
+
+</body>
+
+</html>
